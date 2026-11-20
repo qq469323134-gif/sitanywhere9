@@ -1,0 +1,57 @@
+
+name: Build SitAnywhere ASI v15
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'SitAnywhere_ASI_CloudBuild_v15_NativeFix.zip'
+      - '.github/workflows/build-asi.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract v15 ZIP
+        shell: pwsh
+        run: |
+          $zip = ".\SitAnywhere_ASI_CloudBuild_v15_NativeFix.zip"
+          if (!(Test-Path $zip)) {
+            throw "Version 15 ZIP not found"
+          }
+          Expand-Archive -LiteralPath $zip -DestinationPath ".\source" -Force
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build x64 ASI
+        shell: pwsh
+        run: |
+          $project = ".\source\SitAnywhere_ASI_v8\SitAnywhere.vcxproj"
+          if (!(Test-Path $project)) {
+            throw "Project file not found"
+          }
+          msbuild $project /m /p:Configuration=Release /p:Platform=x64 /p:WindowsTargetPlatformVersion=10.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $asi = ".\source\SitAnywhere_ASI_v8\bin\SitAnywhere.asi"
+          if (!(Test-Path $asi)) {
+            throw "ASI output not found"
+          }
+
+      - name: Upload ASI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SitAnywhere-ASI-v15-x64
+          path: |
+            source/SitAnywhere_ASI_v8/bin/SitAnywhere.asi
+            source/SitAnywhere_ASI_v8/SitAnywhere.ini
+          if-no-files-found: error
+          retention-days: 14
